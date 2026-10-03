@@ -8,12 +8,40 @@ class ModelClientError(Exception):
     """Raised when the local model service cannot return a usable answer."""
 
 
-def generate_answer(prompt, model_name=DEFAULT_MODEL_NAME, base_url=DEFAULT_BASE_URL):
+def generate_answer(
+    prompt,
+    model_name=DEFAULT_MODEL_NAME,
+    base_url=DEFAULT_BASE_URL,
+):
     """Send the prompt to a local Ollama model and return the generated answer."""
-    # TODO: Validate that prompt is a non-empty string.
-    # TODO: POST to {base_url}/api/generate.
-    # TODO: Send model, prompt, and stream=False as JSON.
-    # TODO: Use a timeout.
-    # TODO: Raise ModelClientError for request failures, bad JSON, or missing response.
-    # TODO: Return the stripped response text.
-    raise NotImplementedError("Implement generate_answer().")
+
+    if not isinstance(prompt, str) or not prompt.strip():
+        raise ModelClientError("Prompt cannot be blank.")
+
+    url = f"{base_url.rstrip('/')}/api/generate"
+
+    try:
+        response = requests.post(
+            url,
+            json={
+                "model": model_name,
+                "prompt": prompt,
+                "stream": False,
+            },
+            timeout=60,
+        )
+        response.raise_for_status()
+    except requests.RequestException as exc:
+        raise ModelClientError("Model request failed.") from exc
+
+    try:
+        data = response.json()
+    except (ValueError, TypeError) as exc:
+        raise ModelClientError("Model returned invalid JSON.") from exc
+
+    answer = data.get("response")
+
+    if not isinstance(answer, str) or not answer.strip():
+        raise ModelClientError("Model returned no usable response.")
+
+    return answer.strip()
